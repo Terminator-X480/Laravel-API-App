@@ -1,0 +1,25 @@
+      if (isAddingLocation && newLocation.trim()) {
+        const token = await AsyncStorage.getItem('userToken');
+  
+        if (!token) {
+          throw new Error('Authentication token not found, please login again.');
+        }
+  
+        const locationResponse = await fetch('http://192.168.29.50/Madtrek/wp-json/madtrek/v1/locations', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ locationname: newLocation }),
+        });
+  
+        const locationResult = await locationResponse.json();
+  
+        if (!locationResponse.ok) {
+          throw new Error(locationResult.message || 'Failed to save location.');
+        }
+  
+        // 👇 adjust based on actual response shape
+        finalLocationId = locationResult.location?.id || locationResult.id;
+      }

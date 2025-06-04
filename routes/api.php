@@ -55,7 +55,13 @@ Route::post('/madtrek/v1/leads/{id}/unbook', [LeadController::class, 'unbook']);
 Route::post('/madtrek/v1/leads/{id}/uncancel', [LeadController::class, 'uncancel']);
 
 Route::post('/madtrek/v1/get-lead-data', [LeadController::class, 'getLeadData']);
+
 Route::get('/madtrek/v1/vendors', [VendorController::class, 'index']);
+Route::get('/madtrek/v1/vendors/b2b', [VendorController::class, 'b2bVendors']); // Only B2B
+Route::get('/madtrek/v1/vendors/non-b2b', [VendorController::class, 'nonB2bVendors']);
 
 Route::get('/madtrek/v1/trek-name', [TrekController::class, 'getName']);
 Route::post('/madtrek/v1/add-payment', [PaymentController::class, 'addPayment']);
+
+Route::get('/madtrek/v1/product-price', [LeadController::class, 'getProductPrice']);
+Route::get('/madtrek/v1/payments-by-lead', [LeadController::class, 'getPaymentsByLead']);

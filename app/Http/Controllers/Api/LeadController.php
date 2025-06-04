@@ -13,6 +13,53 @@ use Carbon\Carbon;
 
 class LeadController extends Controller
 {
+    public function getProductPrice(Request $request)
+    {
+        $productId = $request->query('product_id');
+
+        if (!$productId) {
+            return response()->json(['error' => 'Product ID is required'], 400);
+        }
+
+        // Get price from WooCommerce product meta
+        $priceMeta = DB::table('wp_postmeta')
+            ->where('post_id', $productId)
+            ->where('meta_key', '_price')
+            ->value('meta_value');
+
+        if (is_null($priceMeta)) {
+            return response()->json(['error' => 'Product price not found'], 404);
+        }
+
+        // Optional: Get product title too (from wp_posts)
+        $productName = DB::table('wp_posts')
+            ->where('ID', $productId)
+            ->value('post_title');
+
+        return response()->json([
+            'price' => $priceMeta,
+            'product_name' => $productName
+        ]);
+    }
+
+    public function getPaymentsByLead(Request $request)
+    {
+        $leadId = $request->query('lead_id');
+
+        if (!$leadId) {
+            return response()->json(['error' => 'Lead ID is required'], 400);
+        }
+
+        $payments = DB::table('wp_mt_payments')
+            ->where('lead_id', $leadId)
+            ->select('amount', 'created_on')
+            ->get();
+
+        return response()->json([
+            'payments' => $payments
+        ]);
+    }
+
     public function getLeadData(Request $request)
     {
         $request->validate([
@@ -132,66 +179,65 @@ class LeadController extends Controller
         ]);
     }
 
-public function book(Request $request, $id): JsonResponse
-{
-    $leadId = (int) $id;
+    public function book(Request $request, $id): JsonResponse
+    {
+        $leadId = (int) $id;
 
-    $validated = $request->validate([
-        'vendor_id' => 'required|integer|exists:wp_mt_vendors,id',
-        'amount' => 'nullable|numeric|min:0',
-        'created_on' => 'nullable|date',
-    ]);
+        $validated = $request->validate([
+            'vendor_id' => 'required|integer|exists:wp_mt_vendors,id',
+            'amount' => 'nullable|numeric|min:0',
+            'created_on' => 'nullable|date',
+        ]);
 
-    $vendorId = $validated['vendor_id'];
-    $amount = $validated['amount'] ?? 0;
-    $createdOn = isset($validated['created_on'])
-        ? Carbon::parse($validated['created_on'])->timezone('UTC')->format('Y-m-d H:i:s')
-        : now('UTC')->format('Y-m-d H:i:s');
+        $vendorId = $validated['vendor_id'];
+        $amount = $validated['amount'] ?? 0;
+        $createdOn = isset($validated['created_on'])
+            ? Carbon::parse($validated['created_on'])->timezone('UTC')->format('Y-m-d H:i:s')
+            : now('UTC')->format('Y-m-d H:i:s');
 
-    $booking = DB::table('wp_mt_bookings')->where('lead_id', $leadId)->first();
-    $wasUncancelled = false;
+        $booking = DB::table('wp_mt_bookings')->where('lead_id', $leadId)->first();
+        $wasUncancelled = false;
 
-    if ($booking) {
-        if ($booking->is_cancel) {
-            DB::table('wp_mt_bookings')->where('lead_id', $leadId)->update(['is_cancel' => 0]);
-            $wasUncancelled = true;
-        }
+        if ($booking) {
+            if ($booking->is_cancel) {
+                DB::table('wp_mt_bookings')->where('lead_id', $leadId)->update(['is_cancel' => 0]);
+                $wasUncancelled = true;
+            }
 
-        if (!$booking->is_book) {
-            DB::table('wp_mt_bookings')->where('lead_id', $leadId)->update([
-                'is_book' => 1,
+            if (!$booking->is_book) {
+                DB::table('wp_mt_bookings')->where('lead_id', $leadId)->update([
+                    'is_book' => 1,
+                    'vendor_id' => $vendorId,
+                    'created_at' => $createdOn,
+                ]);
+            }
+        } else {
+            DB::table('wp_mt_bookings')->insert([
+                'lead_id' => $leadId,
                 'vendor_id' => $vendorId,
+                'is_book' => 1,
                 'created_at' => $createdOn,
             ]);
         }
-    } else {
-        DB::table('wp_mt_bookings')->insert([
-            'lead_id' => $leadId,
-            'vendor_id' => $vendorId,
-            'is_book' => 1,
-            'created_at' => $createdOn,
+
+        $paymentId = null;
+
+        if ($amount > 0) {
+            $paymentId = DB::table('wp_mt_payments')->insertGetId([
+                'lead_id' => $leadId,
+                'vendor_id' => $vendorId,
+                'amount' => $amount,
+                'user_id' => auth()->id() ?? 0,
+                'created_on' => $createdOn,
+            ]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'was_uncancelled' => $wasUncancelled,
+            'payment_id' => $paymentId,
         ]);
     }
-
-    $paymentId = null;
-
-    if ($amount > 0) {
-        $paymentId = DB::table('wp_mt_payments')->insertGetId([
-            'lead_id' => $leadId,
-            'vendor_id' => $vendorId,
-            'amount' => $amount,
-            'user_id' => auth()->id() ?? 0,
-            'created_on' => $createdOn,
-        ]);
-    }
-
-    return response()->json([
-        'success' => true,
-        'was_uncancelled' => $wasUncancelled,
-        'payment_id' => $paymentId,
-    ]);
-}
-
 
     public function cancel($id): JsonResponse
     {

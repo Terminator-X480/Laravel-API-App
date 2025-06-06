@@ -18,6 +18,7 @@ class Payment extends Model
         'user_id',
         'payment_method',
         'vendor_id',
+        'b2b_vendor_id',
         'amount',
         'company',
         'description',

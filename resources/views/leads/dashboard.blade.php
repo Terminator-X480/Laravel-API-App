@@ -454,16 +454,20 @@ const fetchLeads = (filters = {}) => {
                         <td>${new Date(lead.created_at).toLocaleString()}</td>
                         <td><span class="lead_table_source" style="background-color:${lead.backgroud_color}" > ${lead.source}</span></td>
                         
-                        <td>
+
+                       <td>
                             <select class="lead-status" data-lead-id="${lead.id}" data-old-status="${lead.current_status}">
                                 ${
-                                    lead.statuses.map(status => {
-                                        const selected = status.status === lead.current_status ? 'selected' : '';
-                                        return `<option value="${status.status}" data-status-id="${status.id}" ${selected}>${status.status}</option>`;
-                                    }).join('')
+                                    lead.statuses.length > 0
+                                        ? lead.statuses.map(status => {
+                                            const selected = status.status === lead.current_status ? 'selected' : '';
+                                            return `<option value="${status.status}" data-status-id="${status.id}" ${selected}>${status.status}</option>`;
+                                        }).join('')
+                                        : `<option disabled selected>New</option>`
                                 }
                             </select>
                         </td>
+
 
                         <td>
                             <button class="${bookBtnClass}" data-id="${lead.id}">

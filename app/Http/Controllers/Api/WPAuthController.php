@@ -20,7 +20,7 @@ class WPAuthController extends Controller
             'password' => 'required',
         ]);
 
-        $response = Http::post(env('LIVE_URL') . '/Madtrek/wp-json/madtrek/v1/validate-login', [
+        $response = Http::post(env('LIVE_URL') . '/madtrek/wp-json/madtrek/v1/validate-login', [
             'username' => $request->username,
             'password' => $request->password,
         ]);

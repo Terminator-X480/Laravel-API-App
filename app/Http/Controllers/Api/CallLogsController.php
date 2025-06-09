@@ -95,4 +95,73 @@ class CallLogsController extends Controller
     {
         return DB::table('wp_mt_leads')->where('phone', $phone)->first();
     }
+
+    private function getDeviceName($deviceId)
+    {
+        return DB::table('wp_whatsapp_devices')->where('id', $deviceId)->first() ?? false;
+    }
+
+    public function callListById(Request $request, $id){
+        $lead_id = (int) $id;
+
+        if (!$lead_id) {
+            return response()->json([
+                'success' => false,
+                'html' => '<tr><td colspan="5">Invalid Lead ID</td></tr>'
+            ]);
+        }
+
+        $lead = DB::table('wp_mt_leads')->where('id', $lead_id)->first();
+
+        if (!$lead) {
+            return response()->json([
+                'success' => false,
+                'html' => '<tr><td colspan="5">Lead not found</td></tr>'
+            ]);
+        }
+
+        $calls = DB::table('wp_whatsapp_numbers_calls')
+            ->where('phone', 'LIKE', '%' . $lead->phone . '%')
+            ->orderByDesc('id')
+            ->get();
+
+        $html = '';
+
+        if (count($calls)) {
+            foreach ($calls as $call) {
+                $duration = !empty($call->duration)
+                    ? $call->duration . 's (' . $call->call . ')'
+                    : $call->call;
+
+                $deviceName = $this->getDeviceName($call->device)->name ?? false;
+
+                $formattedTime = \Carbon\Carbon::parse($call->created_at)->format('d M Y, h:i A'); // replace with helper if needed
+
+                $html .= "<tr>
+                    <td>{$call->phone}</td>
+                    <td>{$duration}</td>
+                    <td>{$formattedTime}</td>
+                    <td>";
+
+                if (!empty($call->recording_file)) {
+                    $html .= "<audio controls>
+                                <source src='" . asset("https://madtrek.com/wp-content/lead-attachments/recordings/{$call->recording_file}") . "' type='audio/mp4'>
+                                Your browser does not support the audio element.
+                            </audio>";
+                }
+
+                $html .= "</td>
+                    <td>{$deviceName}</td>
+                </tr>";
+            }
+        } else {
+            $html = "<tr><td colspan='5'>No Calls Found</td></tr>";
+        }
+
+        return response()->json([
+            'success' => true,
+            'html' => $html,
+        ]);
+
+    }
 }

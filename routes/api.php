@@ -38,21 +38,23 @@ Route::middleware('basic.auth.woo')->group(function () {
 });
 
 
-Route::middleware('web')->group(function () {
-    Route::get('/madtrek/v1/leads-login', [LeadPortalController::class, 'showLoginForm'])->name('leads.login');
-    Route::get('/madtrek/v1/leads-dashboard', [LeadPortalController::class, 'dashboard'])->name('leads.dashboard');
-    Route::get('/madtrek/v1/leads-logout', [LeadPortalController::class, 'logout'])->name('leads.logout');
-    Route::get('/madtrek/v1/leads', [LeadController::class, 'getAllLeads']);
-    Route::get('/madtrek/v1/leads/{id}', [LeadController::class, 'get']);
-    Route::post('/madtrek/v1/lead-action', [LeadController::class, 'handleAction']);
-    Route::post('/madtrek/v1/leads-login', [LeadPortalController::class, 'login'])->name('leads.login.submit');
-});
+// Route::middleware('web')->group(function () {
+    // Route::get('/madtrek/v1/leads-login', [LeadPortalController::class, 'showLoginForm'])->name('leads.login');
+    // Route::get('/madtrek/v1/leads-dashboard', [LeadPortalController::class, 'dashboard'])->name('leads.dashboard');
+    // Route::get('/madtrek/v1/leads-logout', [LeadPortalController::class, 'logout'])->name('leads.logout');
+    // Route::get('/madtrek/v1/leads', [LeadController::class, 'getAllLeads']);
+    // Route::get('/madtrek/v1/leads/{id}', [LeadController::class, 'get']);
+    // Route::post('/madtrek/v1/lead-action', [LeadController::class, 'handleAction']);
+    // Route::post('/madtrek/v1/leads-login', [LeadPortalController::class, 'login'])->name('leads.login.submit');
+// });
 
-Route::put('/madtrek/v1/leads/{id}', [LeadController::class, 'update']);
-Route::post('/madtrek/v1/leads/{id}/book', [LeadController::class, 'book'])->name('leads.book');
-Route::post('/madtrek/v1/leads/{id}/cancel', [LeadController::class, 'cancel']);
-Route::post('/madtrek/v1/leads/{id}/unbook', [LeadController::class, 'unbook']);
-Route::post('/madtrek/v1/leads/{id}/uncancel', [LeadController::class, 'uncancel']);
+// Route::put('/madtrek/v1/leads/{id}', [LeadController::class, 'update']);
+// Route::post('/madtrek/v1/leads/{id}/book', [LeadController::class, 'book'])->name('leads.book');
+// Route::post('/madtrek/v1/leads/{id}/cancel', [LeadController::class, 'cancel']);
+// Route::post('/madtrek/v1/leads/{id}/unbook', [LeadController::class, 'unbook']);
+// Route::post('/madtrek/v1/leads/{id}/uncancel', [LeadController::class, 'uncancel']);
+
+Route::get('/madtrek/v1/vendors', [VendorController::class, 'index']);
 
 Route::post('/madtrek/v1/get-lead-data', [LeadController::class, 'getLeadData']);
 

@@ -7,9 +7,14 @@ use Illuminate\Http\Request;
 use App\Models\WpMtLead;
 use App\Models\WpPost;
 use App\Models\WpTerm;
+use App\Models\MtBooking;
+use App\Models\Payment;
+use App\Models\Lead;
+use App\Models\Vendor;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use App\Events\LogEntryCreated;
 
 class LeadController extends Controller
 {
@@ -105,7 +110,13 @@ class LeadController extends Controller
         ]);
 
     }
-    public function getAllLeads(Request $request): JsonResponse
+
+    public function allTreks(){
+        $products = DB::table('wp_posts')->where('post_type', 'product')->where('post_status', 'publish')->get();
+        return response()->json(['success' => true, 'treks' => $products]);
+    }
+
+    public function getAllLeads(Request $request)
     {
         if (!session()->has('leads_user_id')) {
             return response()->json(['error' => 'Unauthorized'], 401);
@@ -113,56 +124,138 @@ class LeadController extends Controller
 
         $query = WpMtLead::query();
 
+        // Filter by phone
         if ($request->filled('phone')) {
             $query->where('phone', 'like', '%' . $request->input('phone') . '%');
         }
 
+        // Filter by trek_date
         if ($request->filled('trek_date')) {
             $query->where('trek_date', $request->input('trek_date'));
         }
 
+        // Filter by lead_date
         if ($request->filled('lead_date')) {
             $query->whereDate('created_at', $request->input('lead_date'));
         }
 
-        $leads = $query->orderByDesc('id')->get();
+        // Booked only
+        if ($request->booked_only == 1) {
+            $query->whereIn('id', function ($subQuery) {
+                $subQuery->select('lead_id')->from('wp_mt_bookings')->where('is_book', 1);
+            });
+        }
 
-        foreach ($leads as $lead) {
+        // Pagination parameters
+        $leadsPerPage = (int) ($request->input('per_page') ?? 15);
+        $page = (int) ($request->input('page') ?? 1);
+
+        // Paginate results
+        $paginatedLeads = $query->orderByDesc('id')->paginate($leadsPerPage, ['*'], 'page', $page);
+
+        // Fetch and enhance each lead
+        $leads = $paginatedLeads->getCollection()->map(function ($lead) {
+            // Trek Name
             switch ($lead->type) {
                 case 'product':
                 case 'mobile':
                     $post = WpPost::where('ID', $lead->type_id)->where('post_type', 'product')->first();
                     $lead->trek_name = $post?->post_title ?? 'Unknown Product';
                     break;
-
                 case 'page':
                     $post = WpPost::where('ID', $lead->type_id)->where('post_type', 'page')->first();
                     $lead->trek_name = $post?->post_title ?? 'Unknown Page';
                     break;
-
                 case 'taxonomy':
                     $term = WpTerm::find($lead->type_id);
                     $lead->trek_name = $term?->name ?? 'Unknown Taxonomy';
                     break;
-
                 default:
                     $lead->trek_name = 'Unknown Type';
             }
-        }
 
-        return response()->json($leads);
+            // Background color by source
+            $sourceColors = [
+                'Popup' => '#ae2ab7',
+                'Enquiry' => '#b71c1c',
+                'Whatsapp' => '#019505',
+                'Meta' => '#3b5998',
+                'Call' => '#d3b238',
+                'Other' => '#534dad',
+                'Google' => '#1e90e1',
+                'Abhinav' => '#008080',
+                'Kailash' => '#db6f2f',
+                'Khushwant' => '#88c708',
+                'Vendor' => '#c7406c',
+            ];
+            $lead->backgroud_color = $sourceColors[$lead->source] ?? 'transparent';
+
+            // Status
+            $lead->current_status = 'New';
+            $latestMeta = DB::table('wp_mt_leadsmeta')
+                ->where('lead_id', $lead->id)
+                ->where('meta_key', 'status_changed')
+                ->orderByDesc('meta_id')
+                ->value('meta_value');
+
+            if ($latestMeta) {
+                $metaData = json_decode($latestMeta, true);
+                if (!empty($metaData) && is_array($metaData)) {
+                    $lastStatusEntry = end($metaData);
+                    if (!empty($lastStatusEntry['status_id'])) {
+                        $status = DB::table('wp_mt_leads_status')
+                            ->where('id', intval($lastStatusEntry['status_id']))
+                            ->value('status');
+                        if ($status) {
+                            $lead->current_status = $status;
+                        }
+                    }
+                }
+            }
+
+            // Status options
+            $lead->statuses = DB::table('wp_mt_leads_status')->select('id', 'status')->get();
+
+            // Booking data
+            $booking = MtBooking::where('lead_id', $lead->id)->first();
+            $lead->is_book = $booking->is_book ?? 0;
+            $lead->is_cancel = $booking->is_cancel ?? 0;
+
+            // Call count
+            $lead->call_count = DB::table('wp_whatsapp_numbers_calls')
+                ->where('phone', 'LIKE', '%' . $lead->phone . '%')
+                ->count();
+
+            return $lead;
+        });
+
+        return response()->json([
+            'data' => $leads,
+            'pagination' => [
+                'total' => $paginatedLeads->total(),
+                'per_page' => $paginatedLeads->perPage(),
+                'current_page' => $paginatedLeads->currentPage(),
+                'last_page' => $paginatedLeads->lastPage(),
+                'from' => $paginatedLeads->firstItem(),
+                'to' => $paginatedLeads->lastItem(),
+            ],
+        ]);
     }
 
-    public function get($id): JsonResponse
+    public function get($id)
     {
         $lead = WpMtLead::findOrFail($id);
+        // $cleanDate = str_replace('T', ' ', $lead->created_at);
+        // $date = new DateTime($lead->created_at);
+        // $lead->created_at = $date->format('d-m-Y, H:i');
+
+        // $lead->created_at = $lead->created_at->timezone('Asia/Kolkata')->format('d-m-Y, H:i');
         return response()->json($lead);
     }
 
-    public function update(Request $request, $id): JsonResponse
+    public function update(Request $request, $id)
     {
         $lead = WpMtLead::findOrFail($id);
-
         $data = $request->validate([
             'name' => 'nullable|string',
             'email' => 'nullable|email',
@@ -175,96 +268,200 @@ class LeadController extends Controller
             'created_at' => 'nullable|date',
             'message' => 'nullable|string',
         ]);
-
         unset($data['created_at']);
-
         $lead->update($data);
+        return response()->json(['success' => true, 'message' => 'Lead updated successfully']);
+    }
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Lead updated successfully',
+    public function addLead(Request $request){
+        $data = $request->validate([
+            'name' => 'nullable|string',
+            'email' => 'nullable|email',
+            'phone' => 'required|string',
+            'country_code' => 'nullable|string',
+            'no_of_people' => 'nullable|integer',
+            'type_id' => 'nullable|integer',
+            'source' => 'nullable|string',
+            'trek_date' => 'nullable|date',
+            'created_at' => 'nullable|date',
+            'message' => 'nullable|string',
         ]);
+        if(empty($data['created_at'])){
+            unset($data['created_at']);
+        }
+        $response = Lead::insert($data);
+        if($response){
+            return response()->json(['success' => true, 'message' => 'Lead Added successfully']);
+        }
+        else{
+            return response()->json(['false' => true, 'message' => 'Something went wrong ']);
+        }
+    }
+
+    public function handleLeadPaymentAndBooking(array $data): array
+    {
+        $leadId = $data['lead_id'] ?? null;
+        if (! $leadId) {
+            return ['success' => false, 'error' => 'Missing lead_id'];
+        }
+
+        $amount = isset($data['amount']) ? (float) $data['amount'] : 0.0;
+        $vendorId = $data['vendor_id'] ?? null;
+        $userId = session('leads_user_id');
+        $createdOn = isset($data['created_on']) ? Carbon::parse($data['created_on'])->setTimezone('UTC')->format('Y-m-d H:i:s') : now()->toDateTimeString();
+
+        $vendorName = null;
+        if ($vendorId) {
+            $vendorName = Vendor::where('id', $vendorId)->value('name');
+        }
+
+        $existingBooking = MtBooking::where('lead_id', $leadId)->first();
+
+        $wasUncanceled = false;
+        $paymentId = null;
+
+        // ------- Handle Booking -------
+        if ($existingBooking) {
+            if ($existingBooking->is_cancel == 1) {
+                $existingBooking->update(['is_cancel' => 0]);
+                event(new LogEntryCreated($leadId, 6 ));
+                $wasUncanceled = true;
+            }
+
+            if ($existingBooking->is_book != 1) {
+                $updateData = collect($data)->only($existingBooking->getFillable())->toArray();
+                $updateData['is_book'] = 1;
+                $updateData['bot'] = $data['bot'] ?? 0;
+                $existingBooking->update($updateData);
+
+                $actionData = [];
+                if ($amount > 0) {
+                    $actionData['paid_amount'] = $amount;
+                }
+                if ($vendorName) {
+                    $actionData['receiver'] = $vendorName;
+                }
+                event(new LogEntryCreated($leadId, 1 , $actionData ));
+            }
+        } else {
+            $insertData = collect($data)->only((new MtBooking)->getFillable())->toArray();
+            $insertData['lead_id'] = $leadId;
+            $insertData['is_book'] = 1;
+            // $insertData['created_at'] = $createdOn;
+            $insertData['bot'] = $data['bot'] ?? 0; // or null if your DB allows it
+
+
+            MtBooking::create($insertData);
+
+            $actionData = [];
+            if ($amount > 0) {
+                $actionData['paid_amount'] = $amount;
+            }
+            if ($vendorName) {
+                $actionData['receiver'] = $vendorName;
+            }
+            event(new LogEntryCreated($leadId, 1 , $actionData ));
+        }
+
+        // ------- Handle Payment -------
+        if ($amount > 0) {
+            $paymentData = collect($data)->only((new Payment)->getFillable())->toArray();
+            $paymentData['user_id'] = $userId;
+            $paymentData['vendor_id'] = $vendorId;
+            $paymentData['created_on'] = $createdOn;
+            $paymentData['bot'] = $data['bot'] ?? 0;;
+
+            $payment = Payment::create($paymentData);
+            $paymentId = $payment->id;
+            $actionData = [];
+            if ($amount > 0) {
+                    $actionData['amount'] = $amount;
+                }
+            if ($vendorName) {
+                $actionData['receiver'] = $vendorName;
+            }
+
+            event(new LogEntryCreated($leadId, 7 , $actionData ));
+        }
+
+        return [
+            'success' => true,
+            'was_uncanceled' => $wasUncanceled,
+            'payment_id' => $paymentId,
+        ];
     }
 
     public function book(Request $request, $id): JsonResponse
     {
-        $leadId = (int) $id;
+        $data = $request->all();
+        $data['lead_id'] = $id;
 
-        $validated = $request->validate([
-            'vendor_id' => 'required|integer|exists:wp_mt_vendors,id',
-            'amount' => 'nullable|numeric|min:0',
-            'created_on' => 'nullable|date',
-        ]);
+        $response = $this->handleLeadPaymentAndBooking($data);
 
-        $vendorId = $validated['vendor_id'];
-        $amount = $validated['amount'] ?? 0;
-        $createdOn = isset($validated['created_on'])
-            ? Carbon::parse($validated['created_on'])->timezone('UTC')->format('Y-m-d H:i:s')
-            : now('UTC')->format('Y-m-d H:i:s');
+        return response()->json($response);
+    }
 
-        $booking = DB::table('wp_mt_bookings')->where('lead_id', $leadId)->first();
-        $wasUncancelled = false;
-
-        if ($booking) {
-            if ($booking->is_cancel) {
-                DB::table('wp_mt_bookings')->where('lead_id', $leadId)->update(['is_cancel' => 0]);
-                $wasUncancelled = true;
-            }
-
-            if (!$booking->is_book) {
-                DB::table('wp_mt_bookings')->where('lead_id', $leadId)->update([
-                    'is_book' => 1,
-                    'vendor_id' => $vendorId,
-                    'created_at' => $createdOn,
-                ]);
-            }
-        } else {
-            DB::table('wp_mt_bookings')->insert([
-                'lead_id' => $leadId,
-                'vendor_id' => $vendorId,
-                'is_book' => 1,
-                'created_at' => $createdOn,
-            ]);
+    public function unbook(Request $request, $id)
+    {
+        $leadId = intval($id);
+        $unbookReason = $request->input('reason', '');
+        if (!$leadId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid Lead ID.'
+            ], 400);
         }
 
-        $paymentId = null;
+        // Assuming you have a Booking model mapped to wp_mt_bookings table
+        $booking = MtBooking::where('lead_id', $leadId)->first();
 
-        if ($amount > 0) {
-            $paymentId = DB::table('wp_mt_payments')->insertGetId([
-                'lead_id' => $leadId,
-                'vendor_id' => $vendorId,
-                'amount' => $amount,
-                'user_id' => auth()->id() ?? 0,
-                'created_on' => $createdOn,
-            ]);
+        if (!$booking) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Booking not found.'
+            ], 404);
         }
+
+        $booking->is_book = 0;
+        $booking->save();
+
+        $actionData = [];
+        if ( $unbookReason) {
+            $actionData = ['_unbook_reason' => $unbookReason];
+        }
+        event(new LogEntryCreated($leadId, 2 , $actionData ));
 
         return response()->json([
             'success' => true,
-            'was_uncancelled' => $wasUncancelled,
-            'payment_id' => $paymentId,
+            'message' => 'Successfully marked as unbooked'
         ]);
     }
 
-    public function cancel($id): JsonResponse
+    public function cancel(Request $request, $id): JsonResponse
     {
-        $leadId = (int) $id;
-        $booking = DB::table('wp_mt_bookings')->where('lead_id', $leadId)->first();
+        $booking = MtBooking::where('lead_id', $id)->first();
         $wasUnbooked = false;
 
         if ($booking) {
-            DB::table('wp_mt_bookings')->where('lead_id', $leadId)->update(['is_cancel' => 1]);
+            // Update is_cancel to 1
+            $booking->is_cancel = 1;
 
-            if ($booking->is_book) {
-                DB::table('wp_mt_bookings')->where('lead_id', $leadId)->update(['is_book' => 0]);
+            // If the lead was booked, mark it as unbooked
+            if ($booking->is_book == 1) {
+                $booking->is_book = 0;
                 $wasUnbooked = true;
+                event(new LogEntryCreated($id, 2 ));
             }
+
+            $booking->save();
         } else {
-            DB::table('wp_mt_bookings')->insert([
-                'lead_id' => $leadId,
+            // No existing booking record: insert one
+            MtBooking::create([
+                'lead_id'   => $id,
                 'is_cancel' => 1,
             ]);
         }
+        event(new LogEntryCreated($id, 5 ));
 
         return response()->json([
             'success' => true,
@@ -272,29 +469,91 @@ class LeadController extends Controller
         ]);
     }
 
-    public function unbook($id, Request $request): JsonResponse
-    {
+    public function uncancel(Request $request, $id){
         $leadId = (int) $id;
 
-        $result = DB::table('wp_mt_bookings')->where('lead_id', $leadId)->update(['is_book' => 0]);
-
-        if ($result !== false) {
-            return response()->json(['success' => true]);
+        if (!$leadId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid Lead ID.'
+            ], 400);
         }
 
-        return response()->json(['success' => false, 'error' => 'DB update failed']);
+        $cancelLead = MtBooking::where('lead_id',$leadId)->first();
+        if(!$cancelLead){
+            return response()->json([
+                'success' => false,
+                'message' => 'Lead Not Found',
+            ],404);
+        }
+        $cancelLead->is_cancel = 0;
+        $cancelLead->save();
+        event(new LogEntryCreated($id, 6 ));
+        return response()->json([
+            'success' => true,
+            'message' => 'Successfully marked as uncancelled'
+        ]);
     }
 
-    public function uncancel($id): JsonResponse
+    public function savePayments(Request $request){
+        $data = $request->all();
+        $response = $this->handleLeadPaymentAndBooking($data);
+        return response()->json($response);
+    }
+
+    public function updateStatus(Request $request,$id)
     {
-        $leadId = (int) $id;
+        $lead_id = (int) $id;
+        $status_id = intval($request->input('status_id'));
+        $status_changed = $request->input('status_changed');
 
-        $result = DB::table('wp_mt_bookings')->where('lead_id', $leadId)->update(['is_cancel' => 0]);
-
-        if ($result !== false) {
-            return response()->json(['success' => true]);
+        if (!$lead_id || !$status_id) {
+            return response()->json(['success' => false, 'message' => 'Invalid data provided'], 400);
         }
 
-        return response()->json(['success' => false, 'error' => 'DB update failed']);
+        $table_leadsmeta = 'wp_mt_leadsmeta';
+
+        // Fetch existing meta_value (JSON) for the lead
+        $existingMeta = DB::table($table_leadsmeta)
+            ->where('lead_id', $lead_id)
+            ->where('meta_key', 'status_changed')
+            ->value('meta_value');
+
+        // Decode or initialize the array
+        $meta_value_data = $existingMeta ? json_decode($existingMeta, true) : [];
+
+        // Append new status change
+        $meta_value_data[] = [
+            'status_id' => $status_id,
+            'status_changed' => $status_changed,
+            'changed_at' => now()->toDateTimeString(), // optional timestamp
+        ];
+
+        // Save back to DB
+        if ($existingMeta) {
+            $update = DB::table($table_leadsmeta)
+                ->where('lead_id', $lead_id)
+                ->where('meta_key', 'status_changed')
+                ->update([
+                    'meta_value' => json_encode($meta_value_data),
+                ]);
+
+            if ($update === false) {
+                return response()->json(['success' => false, 'message' => 'Failed to update meta.'], 500);
+            }
+        } else {
+            $insert = DB::table($table_leadsmeta)->insert([
+                'lead_id' => $lead_id,
+                'meta_key' => 'status_changed',
+                'meta_value' => json_encode($meta_value_data),
+                'created_at' => now(),
+            ]);
+
+            if (!$insert) {
+                return response()->json(['success' => false, 'message' => 'Failed to insert meta.'], 500);
+            }
+        }
+
+        return response()->json(['success' => true, 'message' => 'Status updated successfully']);
     }
 }

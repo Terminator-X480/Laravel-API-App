@@ -10,7 +10,6 @@ class MtBooking extends Model
 
     protected $fillable = [
         'lead_id',
-        'vendor_id',
         'is_book',
         'is_cancel',
         'created_at',

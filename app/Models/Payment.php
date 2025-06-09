@@ -20,6 +20,7 @@ class Payment extends Model
         'vendor_id',
         'b2b_vendor_id',
         'amount',
+        'remaining',
         'company',
         'description',
         'payment_type',

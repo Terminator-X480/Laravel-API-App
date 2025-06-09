@@ -24,7 +24,7 @@ class AuthController extends Controller
         \Log::info('Sending login request to WordPress', ['username' => $username]);
 
         // Replace with your actual WP URL
-        $wpUrl = 'http://192.168.29.50/Madtrek/wp-json/madtrek/v1/validate-login';
+        $wpUrl = env('LIVE_URL') . '/Madtrek/wp-json/madtrek/v1/validate-login';
 
         try {
             $response = \Http::post($wpUrl, [

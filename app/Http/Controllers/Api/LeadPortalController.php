@@ -20,7 +20,7 @@ class LeadPortalController extends Controller
             'password' => 'required',
         ]);
 
-        $response = Http::post('http://192.168.29.50/Madtrek/wp-json/madtrek/v1/validate-login', [
+        $response = Http::post( env('LIVE_URL') . '/Madtrek/wp-json/madtrek/v1/validate-login', [
             'username' => $request->username,
             'password' => $request->password,
         ]);

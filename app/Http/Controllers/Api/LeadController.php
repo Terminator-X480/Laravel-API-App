@@ -62,11 +62,11 @@ class LeadController extends Controller
 
     public function getLeadData(Request $request)
     {
+        
         $request->validate([
             'phone' => 'required|string',
             'country_code' => 'required|string',
         ]);
-
         $lead = DB::table('wp_mt_leads')
             ->where('phone', $request->phone)
             ->where('country_code', $request->country_code)
@@ -79,6 +79,11 @@ class LeadController extends Controller
             ], 404);
         }
 
+        // Now fetch payments for the lead
+        $payments = DB::table('wp_mt_payments')
+            ->where('lead_id', $lead->id)
+            ->get();
+
         return response()->json([
             'success' => true,
             'data' => [
@@ -88,6 +93,7 @@ class LeadController extends Controller
                 'phone'         => $lead->phone,
                 'country_code'  => $lead->country_code,
                 'type'          => $lead->type,
+                'remaining'     => $lead->remaining,
                 'type_id'       => $lead->type_id,
                 'trek_date'     => $lead->trek_date,
                 'source'        => $lead->source,
@@ -95,8 +101,10 @@ class LeadController extends Controller
                 'no_of_people'  => $lead->no_of_people,
                 'created_at'    => $lead->created_at,
                 'message'       => $lead->message,
+                'payments'      => $payments,
             ]
         ]);
+
     }
     public function getAllLeads(Request $request): JsonResponse
     {

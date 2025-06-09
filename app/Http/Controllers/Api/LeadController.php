@@ -93,7 +93,6 @@ class LeadController extends Controller
                 'phone'         => $lead->phone,
                 'country_code'  => $lead->country_code,
                 'type'          => $lead->type,
-                'remaining'     => $lead->remaining,
                 'type_id'       => $lead->type_id,
                 'trek_date'     => $lead->trek_date,
                 'source'        => $lead->source,

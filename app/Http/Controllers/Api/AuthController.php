@@ -33,7 +33,7 @@ class AuthController extends Controller
             ]);
 
             $data = $response->json();
-\Log::info('Login Response:', ['response' => $data]);
+            \Log::info('Login Response:', ['response' => $data]);
 
             if (!$data['success']) {
                 return response()->json(['message' => $data['message'] ?? 'Invalid credentials'], 401);

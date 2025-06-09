@@ -26,7 +26,7 @@ class LeadPortalController extends Controller
         ]);
 
         $data = $response->json();
-$data = $response->json();
+    $data = $response->json();
 
         if ($response->successful() && $data['success']) {
             session([

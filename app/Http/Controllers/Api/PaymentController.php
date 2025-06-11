@@ -10,6 +10,32 @@ use Illuminate\Support\Facades\DB;
 
 class PaymentController extends Controller
 {
+    public function index()
+    {
+        $payments = Payment::with(['user', 'vendor', 'lead'])->get();
+
+        return response()->json([
+            'success' => true,
+            'payments' => $payments,
+        ]);
+
+    }
+    
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function vendor()
+    {
+        return $this->belongsTo(Vendor::class, 'vendor_id');
+    }
+
+    public function lead()
+    {
+        return $this->belongsTo(Lead::class, 'lead_id');
+    }
+
     public function addPayment(Request $request)
     {
         $validator = Validator::make($request->all(), [

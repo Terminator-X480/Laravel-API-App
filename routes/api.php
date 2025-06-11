@@ -13,6 +13,8 @@ use App\Http\Controllers\Api\LeadController;
 use App\Http\Controllers\Api\LeadPortalController;
 use App\Http\Controllers\Api\TrekController;
 use App\Http\Controllers\Api\PaymentController;
+use App\Http\Controllers\Api\EquipmentController;
+use App\Http\Controllers\Api\GearRentalController;
 
 Route::middleware(['auth.basic.woo'])->get('/get-lead', [LeadController::class, 'getLeadByPhone']);
 
@@ -66,3 +68,12 @@ Route::post('/madtrek/v1/add-payment', [PaymentController::class, 'addPayment'])
 
 Route::get('/madtrek/v1/product-price', [LeadController::class, 'getProductPrice']);
 Route::get('/madtrek/v1/payments-by-lead', [LeadController::class, 'getPaymentsByLead']);
+Route::get('/madtrek/v1/payments', [PaymentController::class, 'index']);
+
+// Equipments
+
+Route::get('/madtrek/v1/equipments', [EquipmentController::class, 'index']);
+Route::post('/madtrek/v1/equipments', [EquipmentController::class, 'store']);
+
+
+Route::post('/madtrek/v1/rentals', [GearRentalController::class, 'store']);

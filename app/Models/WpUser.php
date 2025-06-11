@@ -9,4 +9,6 @@ class WPUser extends Model
     protected $table = 'wp_users';   // Your WP users table name
     protected $primaryKey = 'ID';    // WP users primary key is 'ID'
     public $timestamps = false;      // WP tables do NOT have Laravel timestamps
+    protected $hidden = ['user_pass', 'user_activation_key', 'user_status'];
+
 }

@@ -45,4 +45,7 @@ class Payment extends Model
     {
         return $this->belongsTo(Lead::class, 'lead_id');
     }
+    public function b2b_vendor() {
+    return $this->belongsTo(Vendor::class, 'b2b_vendor_id');
+}
 }

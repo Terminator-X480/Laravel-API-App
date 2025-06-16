@@ -15,9 +15,34 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use App\Events\LogEntryCreated;
+use Illuminate\Support\Facades\Http;
 
 class LeadController extends Controller
 {
+    public function getProductDetails($id)
+    {
+        $wordpressUrl = env('WORDPRESS_URL'); // http://localhost/Madtrek
+        $apiUrl = "{$wordpressUrl}/wp-json/custom-api/v1/product/{$id}";
+
+        try {
+            \Log::info('Calling custom WP product API', ['url' => $apiUrl]);
+            $response = Http::timeout(10)->get($apiUrl);
+
+            if ($response->successful()) {
+                return response()->json($response->json());
+            } else {
+                \Log::error('Custom WP API error', ['status' => $response->status(), 'body' => $response->body()]);
+                return response()->json([
+                    'error' => 'Product not found or API error',
+                    'details' => $response->json()
+                ], $response->status());
+            }
+        } catch (\Exception $e) {
+            \Log::error('Error calling custom WP API', ['message' => $e->getMessage()]);
+            return response()->json(['error' => 'Internal error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
     public function getProductPrice(Request $request)
     {
         $productId = $request->query('product_id');

@@ -12,7 +12,7 @@ class PaymentController extends Controller
 {
     public function index()
     {
-        $payments = Payment::with(['user', 'vendor', 'lead'])->get();
+$payments = Payment::with(['user', 'vendor', 'lead', 'b2b_vendor'])->get();
 
         return response()->json([
             'success' => true,
@@ -30,6 +30,12 @@ class PaymentController extends Controller
     {
         return $this->belongsTo(Vendor::class, 'vendor_id');
     }
+
+    public function b2b_vendor()
+{
+    return $this->belongsTo(Vendor::class, 'b2b_vendor_id');
+}
+
 
     public function lead()
     {
@@ -76,17 +82,18 @@ class PaymentController extends Controller
 
     }
 
-    public function getPayments($id, Request $request){
-        $lead_id = (int) $id;
-        if(!$lead_id){
-            return response()->json([
-                'success' => false,
-                'html' => '<tr>invalid lead id</tr>'
-            ]);
-        }
+public function getPayments($id, Request $request){
+    $lead_id = (int) $id;
+    if(!$lead_id){
+        return response()->json([
+            'success' => false,
+            'html' => '<tr>invalid lead id</tr>'
+        ]);
+    }
 
-        $payments = DB::table('wp_mt_payments as payments')
+    $payments = DB::table('wp_mt_payments as payments')
         ->leftJoin('wp_mt_vendors as vendors', 'vendors.id', '=', 'payments.vendor_id')
+        ->leftJoin('wp_mt_vendors as b2b_vendors', 'b2b_vendors.id', '=', 'payments.b2b_vendor_id')
         ->leftJoin('wp_users as wp_users', 'wp_users.id', '=', 'payments.user_id')
         ->where('payments.lead_id', $id)
         ->orderByDesc('payments.id')
@@ -94,29 +101,31 @@ class PaymentController extends Controller
             'payments.amount',
             'payments.created_on',
             'vendors.name as vendor_name',
-            'wp_users.display_name as user_name' // default name field in Laravel's users table
+            'b2b_vendors.name as b2b_vendor_name',
+            'wp_users.display_name as user_name'
         )
         ->get();
 
-        $html = '';
+    $html = '';
 
-        if ($payments->count()) {
-            foreach ($payments as $payment) {
-                $html .= '<tr>';
-                $html .= '<td>₹' . e($payment->amount) . '</td>';
-                $html .= '<td>' . e($payment->vendor_name) . '</td>';
-                $html .= '<td>' . e($payment->created_on) . '</td>';
-                $html .= '<td>' . e($payment->user_name) . '</td>';
-                $html .= '</tr>';
-            }
-        } else {
-            $html = "<tr><td colspan='4'>No Payment Found</td></tr>";
+    if ($payments->count()) {
+        foreach ($payments as $payment) {
+            $html .= '<tr>';
+            $html .= '<td>₹' . e($payment->amount) . '</td>';
+            $html .= '<td>' . e($payment->vendor_name ?? 'N/A') . '</td>';
+            $html .= '<td>' . e($payment->b2b_vendor_name ?? 'N/A') . '</td>';
+            $html .= '<td>' . e($payment->created_on) . '</td>';
+            $html .= '<td>' . e($payment->user_name) . '</td>';
+            $html .= '</tr>';
         }
-
-        return response()->json([
-            'success' => true,
-            'html' => $html
-        ]);
-
+    } else {
+        $html = "<tr><td colspan='5'>No Payment Found</td></tr>";
     }
+
+    return response()->json([
+        'success' => true,
+        'html' => $html
+    ]);
+}
+
 }

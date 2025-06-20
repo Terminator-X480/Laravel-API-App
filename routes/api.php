@@ -59,7 +59,10 @@ Route::get('/madtrek/v1/equipments', [EquipmentController::class, 'index']);
 Route::post('/madtrek/v1/equipments', [EquipmentController::class, 'store']);
 
 // Rent Form
+Route::get('/madtrek/v1/rentals', [GearRentalController::class, 'index']);
 Route::post('/madtrek/v1/rentals', [GearRentalController::class, 'store']);
 
+Route::get('/madtrek/v1/products', [LeadController::class, 'index']);
 Route::get('/madtrek/v1/product/{id}', [LeadController::class, 'getProductDetails']);
 
+Route::get('/madtrek/v1/expense', [ExpenseController::class, 'index']);

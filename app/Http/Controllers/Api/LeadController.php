@@ -19,10 +19,24 @@ use Illuminate\Support\Facades\Http;
 
 class LeadController extends Controller
 {
+
+    public function index()
+    {
+        $posts = DB::table('wp_posts as posts')
+            ->select('posts.ID', 'posts.post_title') // Select only ID and post_title
+            ->where('posts.post_type', 'product')  // Filter for post type 'product'
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'posts' => $posts
+        ]);
+    }
+
     public function getProductDetails($id)
     {
         $wordpressUrl = env('WORDPRESS_URL'); // http://localhost/Madtrek
-        $apiUrl = "{$wordpressUrl}/wp-json/custom-api/v1/product/{$id}";
+        $apiUrl = "{$wordpressUrl}/wp-json/madtrek/v1/product/{$id}";
 
         try {
             \Log::info('Calling custom WP product API', ['url' => $apiUrl]);

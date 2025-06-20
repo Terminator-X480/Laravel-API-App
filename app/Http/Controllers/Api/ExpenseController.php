@@ -9,6 +9,32 @@ use Illuminate\Support\Facades\Validator;
 
 class ExpenseController extends Controller
 {
+
+    public function index()
+    {
+        $expenses = DB::table('wp_mt_expense as e')
+            ->leftJoin('wp_mt_locations as l', 'e.location', '=', 'l.id')
+            ->leftJoin('wp_mt_vendors as v', 'e.vendor', '=', 'v.id')
+            ->leftJoin('wp_posts as p', function($join) {
+                $join->on('e.trek', '=', 'p.ID')
+                    ->where('p.post_type', '=', 'product');
+            })
+            ->leftJoin('wp_users as u', 'e.user_id', '=', 'u.ID')
+            ->select(
+                'e.*',
+                'l.name as location_name',
+                'v.name as vendor_name',
+                'p.post_title as trek_name',
+                'u.display_name as user_name'
+            )
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'expenses' => $expenses,
+        ]);
+    }
+
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [

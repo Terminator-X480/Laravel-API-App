@@ -10,6 +10,29 @@ use Illuminate\Support\Facades\Validator;
 
 class GearRentalController extends Controller
 {
+
+    public function index()
+    {
+        $gears = DB::table('wp_mt_gear_rentals as rentals')
+            ->leftJoin('wp_users as users', 'users.id', '=', 'rentals.user_id')
+            ->leftJoin('wp_mt_vendors as vendors', 'vendors.id', '=', 'rentals.vendor_id')
+            ->leftJoin('wp_mt_locations as locations', 'locations.id', '=', 'rentals.location')
+            ->leftJoin('wp_mt_equipments as equipments', 'equipments.id', '=', 'rentals.equipment')
+            ->select(
+                'rentals.*',
+                'users.display_name as user_name',
+                'vendors.name as vendor_name',
+                'locations.name as location_name',
+                'equipments.name as equipment_name'
+            )
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'gears' => $gears
+        ]);
+    }
+
     public function store(Request $request)
     {
         \Log::info('Received rental request:', $request->all());

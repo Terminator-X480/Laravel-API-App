@@ -12,7 +12,7 @@ class PaymentController extends Controller
 {
     public function index()
     {
-$payments = Payment::with(['user', 'vendor', 'lead', 'b2b_vendor'])->get();
+    $payments = Payment::with(['user', 'vendor', 'lead', 'b2b_vendor'])->get();
 
         return response()->json([
             'success' => true,
@@ -69,7 +69,7 @@ $payments = Payment::with(['user', 'vendor', 'lead', 'b2b_vendor'])->get();
             'payment_method' => $request->payment_method,
             'vendor_id'      => $request->vendor_id,
             'amount'         => number_format($request->amount, 2, '.', ''),
-            'remaining'      => number_format($request->remaining, 2, '.', ''), // ✅ Correct value
+            'remaining'      => number_format($request->remaining, 2, '.', ''),
             'payment_type'   => $request->payment_type,
             'b2b_vendor_id'  => $request->b2b_vendor_id,
         ]);
@@ -127,5 +127,4 @@ public function getPayments($id, Request $request){
         'html' => $html
     ]);
 }
-
 }

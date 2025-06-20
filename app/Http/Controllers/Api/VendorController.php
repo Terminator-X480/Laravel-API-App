@@ -12,7 +12,10 @@ class VendorController extends Controller
     // Original: Returns all vendors
     public function index()
     {
-        $vendors = DB::table('wp_mt_vendors')->get();
+        $vendors = DB::table('wp_mt_vendors as v')
+            ->leftJoin('wp_mt_locations as l', 'v.location', '=', 'l.id')
+            ->select('v.*', 'l.name as location_name')
+            ->get();
 
         return response()->json([
             'success' => true,

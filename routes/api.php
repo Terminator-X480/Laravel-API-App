@@ -38,6 +38,7 @@ Route::middleware(['auth.basic.woo'])->get('/get-lead', [LeadController::class, 
     Route::post('/madtrek/v1/locations', [LocationController::class, 'store']);
 
     // Expense Api's
+    Route::get('/madtrek/v1/expense', [ExpenseController::class, 'index']);
     Route::post('/madtrek/v1/expense', [ExpenseController::class, 'store']);
 
     // Leads & Trek Detals Api

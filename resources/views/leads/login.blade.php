@@ -77,12 +77,22 @@
         .forgot-password:hover {
             text-decoration: underline;
         }
+        button{
+            background-color: #e82b44;
+            border: 2px solid #e82b44;
+            font-weight: 600;
+        }
+        button:hover{
+            color:  #e82b44;
+            background-color:rgb(255, 255, 255);
+            border: 2px solid #e82b44;
+        }
     </style>
 </head>
 <body>
 
 <div class="login-container">
-    <h2>Leads Portal Login</h2>
+    <h2>Madtrek Portal Login</h2>
 
     @if (isset($errors) && $errors->has('login'))
         <p class="error-message">{{ $errors->first('login') }}</p>

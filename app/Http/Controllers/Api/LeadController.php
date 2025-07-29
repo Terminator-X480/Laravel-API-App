@@ -16,6 +16,8 @@ use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use App\Events\LogEntryCreated;
 use Illuminate\Support\Facades\Http;
+use App\Helpers\TimezoneHelper;
+use App\Http\Controllers\Api\WhatsappController;
 
 class LeadController extends Controller
 {
@@ -155,6 +157,34 @@ class LeadController extends Controller
         return response()->json(['success' => true, 'treks' => $products]);
     }
 
+    public function allTreksPages(){
+        $treks = DB::table('wp_posts')
+        ->where('post_type', 'product')
+        ->where('post_status', 'publish')
+        ->select('ID as id', 'post_title as name')
+        ->get();
+
+        // Get Pages
+        $pages = DB::table('wp_posts')
+            ->where('post_type', 'page')
+            ->where('post_status', 'publish')
+            ->select('ID as id', 'post_title as name')
+            ->get();
+
+        // Get Taxonomies (categories under 'product_cat' taxonomy)
+        $taxonomies = DB::table('wp_terms')
+            ->join('wp_term_taxonomy', 'wp_terms.term_id', '=', 'wp_term_taxonomy.term_id')
+            ->where('wp_term_taxonomy.taxonomy', 'product_cat')
+            ->select('wp_terms.term_id as id', 'wp_terms.name')
+            ->get();
+
+        return response()->json([
+            'treks' => $treks,
+            'pages' => $pages,
+            'taxonomies' => $taxonomies
+        ]);
+    }
+
     public function getAllLeads(Request $request)
     {
         if (!session()->has('leads_user_id')) {
@@ -169,13 +199,34 @@ class LeadController extends Controller
         }
 
         // Filter by trek_date
+        // if ($request->filled('trek_date')) {
+        //     $query->where('trek_date', $request->input('trek_date'));
+        // }
         if ($request->filled('trek_date')) {
-            $query->where('trek_date', $request->input('trek_date'));
+            $dateInput = $request->input('trek_date');
+        
+            if (strpos($dateInput, ' to ') !== false) {
+                // It's a range
+                [$startDate, $endDate] = explode(' to ', $dateInput);
+                $query->whereBetween('trek_date', [$startDate, $endDate]);
+            } else {
+                // It's a single date
+                $query->where('trek_date', $dateInput);
+            }
         }
-
+        
         // Filter by lead_date
         if ($request->filled('lead_date')) {
-            $query->whereDate('created_at', $request->input('lead_date'));
+            $dateInput = $request->input('lead_date');
+            // $query->whereDate('created_at', $request->input('lead_date'));
+            if (strpos($dateInput, ' to ') !== false) {
+                // It's a range
+                [$startDate, $endDate] = explode(' to ', $dateInput);
+                $query->whereBetween('created_at', [$startDate, $endDate]);
+            } else {
+                // It's a single date
+                $query->where('created_at', $dateInput);
+            }
         }
 
         // Booked only
@@ -183,6 +234,42 @@ class LeadController extends Controller
             $query->whereIn('id', function ($subQuery) {
                 $subQuery->select('lead_id')->from('wp_mt_bookings')->where('is_book', 1);
             });
+        }
+
+        //multifilter 
+        $multiFilter = $request->input('multi_filter');
+        // Handle if multi_filter is a comma-separated string instead of an array
+        if (is_string($multiFilter)) {
+            $multiFilter = array_map('trim', explode(',', $multiFilter));
+        }
+        if (!empty($multiFilter) && is_array($multiFilter)) {
+            $filteredIds = [];
+
+            foreach ($multiFilter as $filter) {
+                if (preg_match('/^\D+_(\d+)$/', $filter, $matches)) {
+                    $filteredIds[] = intval($matches[1]);
+                }
+            }
+            if (!empty($filteredIds)) {
+                $existingTypeIds = DB::table('wp_mt_leads')
+                    ->whereIn('type_id', $filteredIds)
+                    ->distinct()
+                    ->pluck('type_id')
+                    ->toArray();
+
+                if (!empty($existingTypeIds)) {
+                    $query->whereIn('type_id', $existingTypeIds);
+                }
+            }
+        }
+
+        //source
+        $leadSources = $request->input('leadSources');
+        if (is_string($leadSources)) {
+            $leadSources = array_map('trim', explode(',', $leadSources));
+        }
+        if (!empty($leadSources) && is_array($leadSources)) {
+            $query->whereIn('source', $leadSources);
         }
 
         // Pagination parameters
@@ -265,6 +352,24 @@ class LeadController extends Controller
                 ->where('phone', 'LIKE', '%' . $lead->phone . '%')
                 ->count();
 
+            //whatsapp messages
+            $results = WhatsappController::printAllWhatsappMessages($lead);
+            $msgs = [];
+            foreach( $results as $msg ){
+    
+                $formatted = $msg->time ;
+                $msgs[] = [
+                            'direction' => $msg->direction,
+                            'body' => $msg->body,
+                            'type' => $msg->type,
+                            'time' => $formatted,
+                            'device_name' => $msg->dname
+
+                        ];
+            }
+
+            $lead->all_messages = $msgs;
+
             return $lead;
         });
 
@@ -284,11 +389,7 @@ class LeadController extends Controller
     public function get($id)
     {
         $lead = WpMtLead::findOrFail($id);
-        // $cleanDate = str_replace('T', ' ', $lead->created_at);
-        // $date = new DateTime($lead->created_at);
-        // $lead->created_at = $date->format('d-m-Y, H:i');
-
-        // $lead->created_at = $lead->created_at->timezone('Asia/Kolkata')->format('d-m-Y, H:i');
+        $lead->created_on = TimezoneHelper::UtcToIst($lead->created_at);
         return response()->json($lead);
     }
 
@@ -327,8 +428,11 @@ class LeadController extends Controller
         ]);
         if(empty($data['created_at'])){
             unset($data['created_at']);
+        }else{
+            $data['created_at'] = TimezoneHelper::IstToUtc($data['created_at']);
         }
-        $response = Lead::insert($data);
+        $data['type'] = 'product';
+        $response = WpMtLead::insert($data);
         if($response){
             return response()->json(['success' => true, 'message' => 'Lead Added successfully']);
         }
@@ -347,8 +451,9 @@ class LeadController extends Controller
         $amount = isset($data['amount']) ? (float) $data['amount'] : 0.0;
         $vendorId = $data['vendor_id'] ?? null;
         $userId = session('leads_user_id');
-        $createdOn = isset($data['created_on']) ? Carbon::parse($data['created_on'])->setTimezone('UTC')->format('Y-m-d H:i:s') : now()->toDateTimeString();
-
+        // $createdOn = isset($data['created_on']) ? Carbon::parse($data['created_on'])->setTimezone('UTC')->format('Y-m-d H:i:s') : now()->toDateTimeString();
+        $createdOn = TimezoneHelper::IstToUtc($createdOn)?? now()->toDateTimeString();
+        
         $vendorName = null;
         if ($vendorId) {
             $vendorName = Vendor::where('id', $vendorId)->value('name');

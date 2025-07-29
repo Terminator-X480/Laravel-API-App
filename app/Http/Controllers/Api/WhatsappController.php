@@ -96,4 +96,37 @@ class WhatsappController extends Controller
             ]
         ], 200);
     }
+
+    public function printWhatsappMessages($lead)
+    {
+        $formattedPhone = '+' . $lead->country_code . ' ' . substr($lead->phone, 0, 5) . ' ' . substr($lead->phone, 5);
+
+        $messages = DB::table('wp_whatsapp_messages as m')
+            ->join('wp_whatsapp_devices as d', 'm.device', '=', 'd.id')
+            ->join('wp_whatsapp_numbers as n', function ($join) use ($formattedPhone) {
+                $join->on('n.id', '=', 'm.phone_id')
+                    ->where('n.phone', '=', $formattedPhone);
+            })
+            ->select('m.message', 'm.created_on', 'd.name')
+            ->orderBy('m.created_on', 'asc')
+            ->get();
+
+        return $messages;
+    }
+
+    public static function printAllWhatsappMessages($lead)
+    {
+        $phone = $lead->country_code . $lead->phone;
+
+        $messages = DB::table('wp_mt_whatsapp_fullchat as m')
+            ->join('wp_whatsapp_devices as d', function ($join) use ($phone) {
+                $join->on('m.device', '=', 'd.id')
+                    ->where('m.phone', '=', $phone);
+            })
+            ->select('m.*', 'd.name as dname')
+            ->orderBy('m.time', 'asc')
+            ->get();
+           
+        return $messages;
+    }
 }

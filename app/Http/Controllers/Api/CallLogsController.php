@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use App\Http\Controllers\Controller;
+use App\Helpers\TimezoneHelper;
 
 class CallLogsController extends Controller
 {
@@ -135,17 +136,16 @@ class CallLogsController extends Controller
 
                 $deviceName = $this->getDeviceName($call->device)->name ?? false;
 
-                $formattedTime = \Carbon\Carbon::parse($call->created_at)->format('d M Y, h:i A'); // replace with helper if needed
+                $formattedTime = TimezoneHelper::get_formatted_time($call->created_at);
 
                 $html .= "<tr>
                     <td>{$call->phone}</td>
                     <td>{$duration}</td>
                     <td>{$formattedTime}</td>
                     <td>";
-
                 if (!empty($call->recording_file)) {
-                    $html .= "<audio controls>
-                                <source src='" . asset("https://madtrek.com/wp-content/lead-attachments/recordings/{$call->recording_file}") . "' type='audio/mp4'>
+                    $html .= "<audio controls style='width:236px;'>
+                                <source src='" ."https://madtrek.com/wp-content/lead-attachments/recordings/{$call->recording_file}" . "' type='audio/mp4'>
                                 Your browser does not support the audio element.
                             </audio>";
                 }

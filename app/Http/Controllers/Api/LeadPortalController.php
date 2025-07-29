@@ -59,4 +59,38 @@ class LeadPortalController extends Controller
         return redirect()->route('leads.login');
     }
 
+    public function index() {
+        if (!session()->has('leads_user_id')) {
+            return redirect()->route('leads.login');
+        }
+        return view('leads.dashboard'); // loads dashboard.blade.php
+    }
+
+    public function payments() {
+        if (!session()->has('leads_user_id')) {
+            return redirect()->route('leads.login');
+        }
+        return view('leads.payments'); // loads pages/leads.blade.php
+    }
+
+    public function users() {
+        if (!session()->has('leads_user_id')) {
+            return redirect()->route('leads.login');
+        }
+        return view('leads.users'); // loads pages/users.blade.php
+    }
+
+    public function vendors(){
+        if (!session()->has('leads_user_id')) {
+            return redirect()->route('leads.login');
+        }
+        return view('leads.vendors');
+    }
+
+    public function status(){
+        if (!session()->has('leads_user_id')) {
+            return redirect()->route('leads.login');
+        }
+        return view('leads.status');
+    }
 }
